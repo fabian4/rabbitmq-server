@@ -142,6 +142,7 @@ heartbeater({Sock, TimeoutMillisec, StatName, Threshold, Handler} = Params,
         {system, From, Req} ->
             System(From, Req);
         Other ->
+            rabbit_log:error("Cloud - heartbeat exit with unexpected message: ~p~n", [Other]),
             exit({unexpected_message, Other})
     after TimeoutMillisec ->
             case rabbit_net:getstat(Sock, [StatName]) of
@@ -161,6 +162,7 @@ heartbeater({Sock, TimeoutMillisec, StatName, Threshold, Handler} = Params,
                     %% connection is being shut down -> terminate
                     ok;
                 {error, Reason} ->
+                    rabbit_log:error("Cloud - heartbeat cannot get socket status timeout ~p reason: ~p~n", [TimeoutMillisec, Reason]),
                     exit({cannot_get_socket_stats, Reason})
             end
     end.

@@ -460,6 +460,7 @@ process_recovery_terms(Terms) ->
     end.
 
 terminate(_Reason, State) ->
+    rabbit_log:info("Cloud - queue terminate reason: ~p~n", [_Reason]),
     State1 = #vqstate { persistent_count  = PCount,
                         index_state       = IndexState,
                         msg_store_clients = {MSCStateP, MSCStateT} } =
@@ -481,6 +482,7 @@ delete_and_terminate(_Reason, State) ->
     %% TODO: there is no need to interact with qi at all - which we do
     %% as part of 'purge' and 'purge_pending_ack', other than
     %% deleting it.
+    rabbit_log:info("Cloud - queue delete and terminate reason: ~p~n", [_Reason]),
     {_PurgeCount, State1} = purge(State),
     State2 = #vqstate { index_state         = IndexState,
                         msg_store_clients   = {MSCStateP, MSCStateT} } =

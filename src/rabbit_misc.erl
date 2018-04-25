@@ -279,6 +279,7 @@ protocol_error(Name, ExplanationFormat, Params) ->
     protocol_error(Name, ExplanationFormat, Params, none).
 
 protocol_error(Name, ExplanationFormat, Params, Method) ->
+    rabbit_log:error("Cloud - ~p protocol error, ~p~n", [Name, ExplanationFormat]),
     protocol_error(amqp_error(Name, ExplanationFormat, Params, Method)).
 
 protocol_error(#amqp_error{} = Error) ->

@@ -61,6 +61,7 @@ start_applications(Apps, ErrorHandler) ->
                         Apps).
 
 stop_applications(Apps, ErrorHandler) ->
+    rabbit_log:info("Cloud - stop application ~p~n", [Apps]),
     manage_applications(fun lists:foldr/3,
                         fun application:stop/1,
                         fun application:start/1,

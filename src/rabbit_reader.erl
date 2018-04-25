@@ -201,6 +201,7 @@ socket_op(Sock, Fun) ->
         {ok, Res}       -> Res;
         {error, Reason} -> socket_error(Reason),
                            %% NB: this is tcp socket, even in case of ssl
+                           rabbit_log:error("Cloud - tcp socket ~p error reason: ~p~n", [Sock, Reason]),
                            rabbit_net:fast_close(Sock),
                            exit(normal)
     end.
@@ -212,6 +213,7 @@ start_connection(Parent, HelperSup, Deb, Sock, SockTransform) ->
                {error, enotconn} -> rabbit_net:fast_close(Sock),
                                     exit(normal);
                {error, Reason}   -> socket_error(Reason),
+                                    rabbit_log:error("Cloud - tcp socket ~p error reason: ~p~n", [Sock, Reason]),
                                     rabbit_net:fast_close(Sock),
                                     exit(normal)
            end,
@@ -388,6 +390,7 @@ handle_other(handshake_timeout, State) ->
 handle_other(heartbeat_timeout, State = #v1{connection_state = closed}) ->
     State;
 handle_other(heartbeat_timeout, State = #v1{connection_state = S}) ->
+    rabbit_log:info("Cloud - heartbeat timeout ~p, connect state ~p~n", [heartbeat_timeout, State]),
     maybe_emit_stats(State),
     throw({heartbeat_timeout, S});
 handle_other({'$gen_call', From, {shutdown, Explanation}}, State) ->
@@ -424,6 +427,7 @@ handle_other({bump_credit, Msg}, State) ->
 handle_other(Other, State) ->
     %% internal error -> something worth dying for
     maybe_emit_stats(State),
+    rabbit_log:error("Cloud - internal error unexpected message ~p~n", [Other]),
     exit({unexpected_message, Other}).
 
 switch_callback(State, Callback, Length) ->
@@ -608,6 +612,7 @@ fatal_frame_error(Error, Type, Channel, Payload, State) ->
     frame_error(Error, Type, Channel, Payload, State),
     %% grace period to allow transmission of error
     timer:sleep(?SILENT_CLOSE_DELAY * 1000),
+    rabbit_log:error("Cloud - channel ~p error with reason: ~p~n", [Channel, Error]),
     throw(fatal_frame_error).
 
 frame_error(Error, Type, Channel, Payload, State) ->
@@ -838,12 +843,14 @@ start_connection({ProtocolMajor, ProtocolMinor, _ProtocolRevision},
 
 refuse_connection(Sock, Exception, {A, B, C, D}) ->
     ok = inet_op(fun () -> rabbit_net:send(Sock, <<"AMQP",A,B,C,D>>) end),
+    rabbit_log:error("Cloud - AMQP ~p connect refuse: ~p~n", [Sock, Exception]),
     throw(Exception).
 
 -ifdef(use_specs).
 -spec(refuse_connection/2 :: (rabbit_net:socket(), any()) -> no_return()).
 -endif.
 refuse_connection(Sock, Exception) ->
+    rabbit_log:error("Cloud - AMQP ~p connect refuse: ~p~n", [Sock, Exception]),
     refuse_connection(Sock, Exception, {0, 0, 9, 1}).
 
 ensure_stats_timer(State = #v1{connection_state = running}) ->
@@ -860,11 +867,14 @@ handle_method0(MethodName, FieldsBin,
                        State)
     catch throw:{inet_error, closed} ->
             maybe_emit_stats(State),
+            rabbit_log:error("Cloud - AMQP connect close, ~p~n", [State]),
             throw(connection_closed_abruptly);
           exit:#amqp_error{method = none} = Reason ->
+            rabbit_log:error("Cloud - AMQP connect close reason: ~p~n", [Reason]),
             handle_exception(State, 0, Reason#amqp_error{method = MethodName});
           Type:Reason ->
             Stack = erlang:get_stacktrace(),
+            rabbit_log:error("Cloud - AMQP connect close reason: ~p~n", [Reason]),
             handle_exception(State, 0, {Type, Reason, MethodName, Stack})
     end.
 
